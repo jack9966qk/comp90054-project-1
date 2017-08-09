@@ -72,6 +72,29 @@ def tinyMazeSearch(problem):
     w = Directions.WEST
     return  [s, s, w, s, w, w, s, w]
 
+# Helper functions
+def getActionList(node):
+    print(node)
+    actions = []
+    while node[3]:
+        actions.append(node[1])
+        node = node[3]
+    print(actions[::-1])
+    return actions[::-1]
+
+def search(problem, init, isEmpty, next, expand):
+    closed = set()
+    opened = init()
+    while not isEmpty(opened):
+        node = next(opened)
+        print(node)
+        if problem.isGoalState(node[0]):
+            return getActionList(node)
+        if node[0] not in closed:
+            closed.add(node[0])
+            expand(node, opened)
+    return None
+
 def depthFirstSearch(problem):
     """
     Search the deepest nodes in the search tree first.
@@ -87,17 +110,64 @@ def depthFirstSearch(problem):
     print "Start's successors:", problem.getSuccessors(problem.getStartState())
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    def init():
+        opened = util.Stack()
+        opened.push( (problem.getStartState(), None, 0, None) )
+        return opened
+
+    def isEmpty(opened):
+        return opened.isEmpty()
+
+    def next(opened):
+        return opened.pop()
+
+    def expand(node, opened):
+        for succ in problem.getSuccessors(node[0]):
+            opened.push( (succ[0], succ[1], succ[2], node ) )
+    
+    return search(problem, init, isEmpty, next, expand)
 
 def breadthFirstSearch(problem):
     """Search the shallowest nodes in the search tree first."""
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    def init():
+        opened = util.Queue()
+        opened.push( (problem.getStartState(), None, 0, None) )
+        return opened
+
+    def isEmpty(opened):
+        return opened.isEmpty()
+
+    def next(opened):
+        return opened.pop()
+
+    def expand(node, opened):
+        for succ in problem.getSuccessors(node[0]):
+            opened.push( (succ[0], succ[1], succ[2], node ) )
+    
+    return search(problem, init, isEmpty, next, expand)
 
 def uniformCostSearch(problem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    def init():
+        opened = util.PriorityQueue()
+        opened.push( (problem.getStartState(), None, 0, None), 0 )
+        return opened
+
+    def isEmpty(opened):
+        return opened.isEmpty()
+
+    def next(opened):
+        return opened.pop()
+
+    def expand(node, opened):
+        for succ in problem.getSuccessors(node[0]):
+            succ = (succ[0], succ[1], succ[2], node )
+            cost = problem.getCostOfActions(getActionList(succ))
+            opened.update(succ, cost)
+    
+    return search(problem, init, isEmpty, next, expand)
 
 def nullHeuristic(state, problem=None):
     """
@@ -109,7 +179,25 @@ def nullHeuristic(state, problem=None):
 def aStarSearch(problem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    def init():
+        opened = util.PriorityQueue()
+        opened.push( (problem.getStartState(), None, 0, None), 0 )
+        return opened
+
+    def isEmpty(opened):
+        return opened.isEmpty()
+
+    def next(opened):
+        return opened.pop()
+
+    def expand(node, opened):
+        for succ in problem.getSuccessors(node[0]):
+            succ = (succ[0], succ[1], succ[2], node )
+            cost = problem.getCostOfActions(getActionList(succ))
+            heur = heuristic(succ[0], problem)
+            opened.update(succ, cost + heur)
+    
+    return search(problem, init, isEmpty, next, expand)
 
 
 # Abbreviations
