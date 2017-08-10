@@ -288,6 +288,7 @@ class CornersProblem(search.SearchProblem):
         # Please add any code here which you would like to use
         # in initializing the problem
         "*** YOUR CODE HERE ***"
+        self.startingGameState = startingGameState
 
     def getStartState(self):
         """
@@ -371,7 +372,23 @@ def cornersHeuristic(state, problem):
     walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
 
     "*** YOUR CODE HERE ***"
-    return 0 # Default to trivial solution
+    x, y = state[0]
+    if problem.isGoalState(state): return 0
+    remaining = set(problem.corners) - set(state[1])
+    dists = {pos: ((x - pos[0]) ** 2 + (y - pos[1]) ** 2) ** 0.5 for pos in remaining}
+    corner = min(remaining, key=lambda x: dists[x])
+
+    return dists[corner]
+    
+    # def probWithCorner(problem, corner):
+    #     subProblem = CornersProblem(problem.startingGameState)
+    #     subProblem.corners = (corner,)
+    #     return subProblem
+    
+    # return len(search.uniformCostSearch(probWithCorner(problem, corner)))
+    # paths = [search.uniformCostSearch(probWithCorner(problem, corner)) for corner in remaining]
+
+    # return min([len(p) for p in paths])
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -465,7 +482,21 @@ def foodHeuristic(state, problem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-    return 0
+    if len(foodGrid.asList()) == 0: return 0
+    def dist(a, b):
+        return (abs(a[0] - b[0]) + abs(a[1] - b[1]))
+
+    food = [(coord, dist(position, coord)) for coord in foodGrid.asList()]
+    food.sort(key=lambda x: x[1])
+    h = 0
+    while len(food):
+        f = food.pop(0)
+        print("dist from", position, "to", f[0], "is", dist(position, f[0]))
+        h += dist(position, f[0])
+        position = f[0]
+        food.sort(key=lambda x: x[1])
+    print("computed h:", h)
+    return h ** 0.5
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -496,7 +527,7 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return search.uniformCostSearch(problem)
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
@@ -532,7 +563,7 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         x,y = state
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return self.food[x][y]
 
 def mazeDistance(point1, point2, gameState):
     """
