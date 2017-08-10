@@ -266,6 +266,29 @@ def euclideanHeuristic(position, problem, info={}):
 # This portion is incomplete.  Time to write code!  #
 #####################################################
 
+def getShortestDist(gameState, a, b):
+    problem = PositionSearchProblem(gameState, start = a, warn=False)
+    problem.goal = b
+    return len(search.uniformCostSearch(problem))
+
+def getShortestDistToAll(start, goals, distBetween):
+    if not goals: return 0
+    options = [
+        (g, distBetween[start, g] + getShortestDistToAll(g, [n for n in goals if n != g], distBetween))
+        for g in goals
+    ]
+    return min(options, key=lambda x:x[1])[1]
+
+def getDistToAllNearestNeighbour(start, goals, distBetween):
+    pos = start
+    dist = 0
+    while goals:
+        goals.sort(key=lambda x:distBetween[pos, x])
+        next = goals.pop(0)
+        dist += distBetween[pos, next]
+        pos = next
+    return dist
+
 class CornersProblem(search.SearchProblem):
     """
     This search problem finds paths through all four corners of a layout.
@@ -289,6 +312,16 @@ class CornersProblem(search.SearchProblem):
         # in initializing the problem
         "*** YOUR CODE HERE ***"
         self.startingGameState = startingGameState
+        # record all actual dists between corners
+        self.distBetween = {}
+        for i in range(len(self.corners)):
+            for j in range(len(self.corners)):
+                if i < j:
+                    a = self.corners[i]
+                    b = self.corners[j]
+                    dist = getShortestDist(startingGameState, a, b)
+                    self.distBetween[a, b] = dist
+                    self.distBetween[b, a] = dist
 
     def getStartState(self):
         """
@@ -372,23 +405,19 @@ def cornersHeuristic(state, problem):
     walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
 
     "*** YOUR CODE HERE ***"
-    x, y = state[0]
     if problem.isGoalState(state): return 0
-    remaining = set(problem.corners) - set(state[1])
-    dists = {pos: ((x - pos[0]) ** 2 + (y - pos[1]) ** 2) ** 0.5 for pos in remaining}
-    corner = min(remaining, key=lambda x: dists[x])
 
-    return dists[corner]
-    
-    # def probWithCorner(problem, corner):
-    #     subProblem = CornersProblem(problem.startingGameState)
-    #     subProblem.corners = (corner,)
-    #     return subProblem
-    
-    # return len(search.uniformCostSearch(probWithCorner(problem, corner)))
-    # paths = [search.uniformCostSearch(probWithCorner(problem, corner)) for corner in remaining]
+    def approxDist(a, b):
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
 
-    # return min([len(p) for p in paths])
+    # compute distance to corners
+    remaining = list(set(problem.corners) - set(state[1]))
+    distBetween = dict(problem.distBetween)
+    for corner in remaining:
+        distBetween[state[0], corner] = getShortestDist(problem.startingGameState, state[0], corner)
+
+    # get shortest total dist
+    return getShortestDistToAll(state[0], list(remaining), distBetween)
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -482,21 +511,32 @@ def foodHeuristic(state, problem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-    if len(foodGrid.asList()) == 0: return 0
-    def dist(a, b):
-        return (abs(a[0] - b[0]) + abs(a[1] - b[1]))
+    if problem.isGoalState(state): return 0
 
-    food = [(coord, dist(position, coord)) for coord in foodGrid.asList()]
-    food.sort(key=lambda x: x[1])
-    h = 0
-    while len(food):
-        f = food.pop(0)
-        print("dist from", position, "to", f[0], "is", dist(position, f[0]))
-        h += dist(position, f[0])
-        position = f[0]
-        food.sort(key=lambda x: x[1])
-    print("computed h:", h)
-    return h ** 0.5
+    def approxDist(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    # compute approximate distances
+    foodList = foodGrid.asList()
+    if "distBetween" not in problem.heuristicInfo:
+        problem.heuristicInfo["distBetween"] = {}
+        for i in range(len(foodList)):
+            for j in range(len(foodList)):
+                if i < j:
+                    a = foodList[i]
+                    b = foodList[j]
+                    dist = approxDist(a, b)
+                    problem.heuristicInfo["distBetween"][a, b] = dist
+                    problem.heuristicInfo["distBetween"][b, a] = dist
+    
+    distBetween = dict(problem.heuristicInfo["distBetween"])
+    for coord in foodList:
+        dist = approxDist(position, coord)
+        distBetween[position, coord] = dist
+        distBetween[coord, position] = dist
+
+    # do "travelling salesman"
+    return getDistToAllNearestNeighbour(position, foodList, distBetween) ** 0.75
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
