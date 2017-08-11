@@ -271,6 +271,9 @@ def getShortestDist(gameState, a, b):
     problem.goal = b
     return len(search.uniformCostSearch(problem))
 
+def manhattanDist(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
 def getShortestDistToAll(start, goals, distBetween):
     if not goals: return 0
     options = [
@@ -288,6 +291,69 @@ def getDistToAllNearestNeighbour(start, goals, distBetween):
         dist += distBetween[pos, next]
         pos = next
     return dist
+
+# Should be consistent?? http://lucieackley.com/heuristic.pdf
+def getDistToAllMinimumSpanningTree(start, goals, distBetween):
+    vertices = list(goals)
+#     vertices.insert(0, start)
+    adjMatrix = []
+    for i in range(len(vertices)):
+        row = []
+        for j in range(len(vertices)):
+            row.append(distBetween[vertices[i], vertices[j]] if i != j else 0)
+        adjMatrix.append(row)
+    edges = getMinimumSpanningTree(len(vertices), adjMatrix)
+    
+#     total = 0
+#     pos = 0 # start pos index
+#     for n in preorderTraversal(0, edges):
+#         total += adjMatrix[pos][n]
+#         pos = 0
+#     return total
+    total = 0
+    for i, j in edges:
+#         print("edge: {} to {}, dist {}".format(i, j, adjMatrix[i][j]))
+        total += adjMatrix[i][j] 
+#     print("total cost: {}".format(total))
+
+    dists = [manhattanDist(start, g) for g in goals]
+    total += min(dists)
+
+    return total
+
+# TODO: Make an original version
+# ADAPED FROM GITHUB
+def getMinimumSpanningTree(vertices, graph):
+    # initialize the MST and the set X
+    T = set();
+    X = set();
+
+    # select an arbitrary vertex to begin with
+    X.add(0);
+
+    while len(X) != vertices:
+        crossing = set();
+        # for each element x in X, add the edge (x, k) to crossing if
+        # k is not in X
+        for x in X:
+            for k in range(vertices):
+                if k not in X and graph[x][k] != 0:
+                    crossing.add((x, k))
+        # find the edge with the smallest weight in crossing
+        edge = sorted(crossing, key=lambda e:graph[e[0]][e[1]])[0];
+        # add this edge to T
+        T.add(edge)
+        # add the new vertex to X
+        X.add(edge[1])
+
+    return T
+
+def preorderTraversal(start, edges):
+    yield start
+    for f, t in edges:
+        if f == start:
+            for n in preorderTraversal(t, edges):
+                yield n
 
 class CornersProblem(search.SearchProblem):
     """
@@ -525,18 +591,20 @@ def foodHeuristic(state, problem):
                 if i < j:
                     a = foodList[i]
                     b = foodList[j]
-                    dist = approxDist(a, b)
+                    dist = getShortestDist(problem.startingGameState, a, b)
+#                     dist = approxDist(a, b)
                     problem.heuristicInfo["distBetween"][a, b] = dist
                     problem.heuristicInfo["distBetween"][b, a] = dist
     
     distBetween = dict(problem.heuristicInfo["distBetween"])
     for coord in foodList:
+#         dist = getShortestDist(problem.startingGameState, position, coord)
         dist = approxDist(position, coord)
         distBetween[position, coord] = dist
         distBetween[coord, position] = dist
 
     # do "travelling salesman"
-    return getDistToAllNearestNeighbour(position, foodList, distBetween) ** 0.75
+    return getDistToAllMinimumSpanningTree(position, foodList, distBetween)
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
