@@ -266,6 +266,7 @@ def euclideanHeuristic(position, problem, info={}):
 # This portion is incomplete.  Time to write code!  #
 #####################################################
 
+# get actual shortest distance between a and b
 def getShortestDist(gameState, a, b):
     problem = PositionSearchProblem(gameState, start = a, warn=False)
     problem.goal = b
@@ -274,86 +275,59 @@ def getShortestDist(gameState, a, b):
 def manhattanDist(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
+# NP optimal solution of TSP variant
 def getShortestDistToAll(start, goals, distBetween):
     if not goals: return 0
-    options = [
-        (g, distBetween[start, g] + getShortestDistToAll(g, [n for n in goals if n != g], distBetween))
-        for g in goals
-    ]
+    options = [(g,
+        distBetween[start, g] +
+        getShortestDistToAll(g, [n for n in goals if n != g], distBetween)
+    ) for g in goals]
     return min(options, key=lambda x:x[1])[1]
 
-def getDistToAllNearestNeighbour(start, goals, distBetween):
-    pos = start
-    dist = 0
-    while goals:
-        goals.sort(key=lambda x:distBetween[pos, x])
-        next = goals.pop(0)
-        dist += distBetween[pos, next]
-        pos = next
-    return dist
-
-# Should be consistent?? http://lucieackley.com/heuristic.pdf
+# Should be consistent http://lucieackley.com/heuristic.pdf
 def getDistToAllMinimumSpanningTree(start, goals, distBetween):
-    vertices = list(goals)
-#     vertices.insert(0, start)
-    adjMatrix = []
-    for i in range(len(vertices)):
-        row = []
-        for j in range(len(vertices)):
-            row.append(distBetween[vertices[i], vertices[j]] if i != j else 0)
-        adjMatrix.append(row)
-    edges = getMinimumSpanningTree(len(vertices), adjMatrix)
-    
-#     total = 0
-#     pos = 0 # start pos index
-#     for n in preorderTraversal(0, edges):
-#         total += adjMatrix[pos][n]
-#         pos = 0
-#     return total
+    edges = makeMst(goals, distBetween)
     total = 0
-    for i, j in edges:
-#         print("edge: {} to {}, dist {}".format(i, j, adjMatrix[i][j]))
-        total += adjMatrix[i][j] 
-#     print("total cost: {}".format(total))
-
-    dists = [manhattanDist(start, g) for g in goals]
-    total += min(dists)
-
+    for a, b in edges: total += distBetween[a, b]
+    total += min([distBetween[start, g] for g in goals])
     return total
 
-# TODO: Make an original version
-# ADAPED FROM GITHUB
-def getMinimumSpanningTree(vertices, graph):
-    # initialize the MST and the set X
-    T = set();
-    X = set();
+# Class for Disjoint Sets
+class DisjointSets(object):
+    def __init__(self, elements):
+        setsList = [frozenset([e]) for e in elements]
+        self.sets = set(setsList)
+        self.setOf = {elements[i]: setsList[i] for i in range(len(elements))}
+    
+    def mergeSetsWithElements(self, elem1, elem2):
+        s1 = self.setOf[elem1]
+        s2 = self.setOf[elem2]
+        newSet = s1 | s2 # set union
+        self.sets.remove(s1)
+        self.sets.remove(s2)
+        self.sets.add(newSet)
+        for e in newSet:
+            self.setOf[e] = newSet
+    
+    def areInSameSet(self, elem1, elem2):
+        return self.setOf[elem1] == self.setOf[elem2]
 
-    # select an arbitrary vertex to begin with
-    X.add(0);
-
-    while len(X) != vertices:
-        crossing = set();
-        # for each element x in X, add the edge (x, k) to crossing if
-        # k is not in X
-        for x in X:
-            for k in range(vertices):
-                if k not in X and graph[x][k] != 0:
-                    crossing.add((x, k))
-        # find the edge with the smallest weight in crossing
-        edge = sorted(crossing, key=lambda e:graph[e[0]][e[1]])[0];
-        # add this edge to T
-        T.add(edge)
-        # add the new vertex to X
-        X.add(edge[1])
-
-    return T
-
-def preorderTraversal(start, edges):
-    yield start
-    for f, t in edges:
-        if f == start:
-            for n in preorderTraversal(t, edges):
-                yield n
+# Make minimum spanning tree from goals and distances, return a set of edges in MST
+def makeMst(goals, distBetween):
+    # edges sorted by dist(weight) increasing
+    edges = [((a, b), distBetween[a, b]) for a in goals for b in goals if a != b]
+    edges.sort(key=lambda x: x[1])
+    # forest of connected nodes in MST
+    forest = DisjointSets(goals)
+    # edges included in MST so far
+    included = set()
+    # Kruskal's algorithm
+    while len(forest.sets) > 1:
+        (a, b), _ = edges.pop(0)
+        if not forest.areInSameSet(a, b):
+            included.add((a, b))
+            forest.mergeSetsWithElements(a, b)
+    return included
 
 class CornersProblem(search.SearchProblem):
     """
@@ -474,7 +448,7 @@ def cornersHeuristic(state, problem):
     if problem.isGoalState(state): return 0
 
     def approxDist(a, b):
-        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+        return (abs(a[0] - b[0]) + abs(a[1] - b[1]))
 
     # compute distance to corners
     remaining = list(set(problem.corners) - set(state[1]))
@@ -482,8 +456,8 @@ def cornersHeuristic(state, problem):
     for corner in remaining:
         distBetween[state[0], corner] = getShortestDist(problem.startingGameState, state[0], corner)
 
-    # get shortest total dist
-    return getShortestDistToAll(state[0], list(remaining), distBetween)
+    # get total dist
+    return getDistToAllMinimumSpanningTree(state[0], list(remaining), distBetween)
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
