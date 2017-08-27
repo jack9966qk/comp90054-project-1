@@ -72,8 +72,9 @@ def tinyMazeSearch(problem):
     w = Directions.WEST
     return  [s, s, w, s, w, w, s, w]
 
-# Helper functions
+# Helper functions for search algorithms
 def make_initial_node(state):
+    """Make the initial node of searching"""
     return {
         "state": state,
         "action": None,
@@ -82,6 +83,10 @@ def make_initial_node(state):
     }
 
 def make_succ_node(current_node, succ):
+    """
+    Make the successor node given the current node
+    and succ as a dictionary obtained from problem.GetSuccessors
+    """
     return {
         "state": succ[0],
         "action": succ[1],
@@ -90,20 +95,27 @@ def make_succ_node(current_node, succ):
     }
 
 def getActionList(node):
-#     print(node)
+    """
+    Get the sequence of actions from the
+    beginning of the problem to the current node
+    """
     actions = []
     while node["prev"]:
         actions.append(node["action"])
         node = node["prev"]
-#     print(actions[::-1])
     return actions[::-1]
 
 def search(problem, init, expand):
+    """
+    Perform a search algorithm with shared logic,
+    it calls init function to initialise data structure for open list,
+    and calls expand function to expand the current node and update the
+    data structure accordingly
+    """
     closed = set()
     opened = init()
     while not opened.isEmpty():
         node = opened.pop()
-#         print(node)
         if problem.isGoalState(node["state"]):
             return getActionList(node)
         if node["state"] not in closed:
@@ -126,6 +138,8 @@ def depthFirstSearch(problem):
     print "Start's successors:", problem.getSuccessors(problem.getStartState())
     """
     "*** YOUR CODE HERE ***"
+    ################### QUESTION 1 ###################
+    # perform search with stack as the data stucture for open nodes
     def init():
         opened = util.Stack()
         opened.push(make_initial_node(problem.getStartState()))
@@ -140,6 +154,8 @@ def depthFirstSearch(problem):
 def breadthFirstSearch(problem):
     """Search the shallowest nodes in the search tree first."""
     "*** YOUR CODE HERE ***"
+    ################### QUESTION 2 ###################
+    # perform search with queue as the data stucture for open nodes
     def init():
         opened = util.Queue()
         opened.push(make_initial_node(problem.getStartState()))
@@ -154,6 +170,9 @@ def breadthFirstSearch(problem):
 def uniformCostSearch(problem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
+    ################### QUESTION 3 ###################
+    # perform search with priority queue as the data stucture for open nodes
+    # cost of actions are used as priorities
     def init():
         opened = util.PriorityQueue()
         opened.push(make_initial_node(problem.getStartState()), 0)
@@ -177,6 +196,9 @@ def nullHeuristic(state, problem=None):
 def aStarSearch(problem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
+    ################### QUESTION 3 ###################
+    # perform search with priority queue as the data stucture for open nodes
+    # (cost + heuristic) values are used as priorities
     def init():
         opened = util.PriorityQueue()
         opened.push(make_initial_node(problem.getStartState()), 0)

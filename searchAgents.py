@@ -266,34 +266,32 @@ def euclideanHeuristic(position, problem, info={}):
 # This portion is incomplete.  Time to write code!  #
 #####################################################
 
-# get actual shortest distance between a and b
+# Helper functions for search agents
 def getShortestDist(gameState, a, b):
+    """Get actual shortest distance between a and b"""
     problem = PositionSearchProblem(gameState, start = a, warn=False)
     problem.goal = b
     return len(search.uniformCostSearch(problem))
 
 def manhattanDist(a, b):
+    """Get the manhattan distance between a and b"""
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-# NP optimal solution of TSP variant
-def getShortestDistToAll(start, goals, distBetween):
-    if not goals: return 0
-    options = [(g,
-        distBetween[start, g] +
-        getShortestDistToAll(g, [n for n in goals if n != g], distBetween)
-    ) for g in goals]
-    return min(options, key=lambda x:x[1])[1]
-
 # Should be consistent http://lucieackley.com/heuristic.pdf
-def getDistToAllMinimumSpanningTree(start, goals, distBetween):
+def getDistToAllUsingMst(start, goals, distBetween):
+    """
+    Heuristic for the problem visiting all goals from the start position,
+    by relaxing the problem as computing the total distance involved in
+    the minimum spanning tree of the graph
+    """
     edges = makeMst(goals, distBetween)
     total = 0
     for a, b in edges: total += distBetween[a, b]
     total += min([distBetween[start, g] for g in goals])
     return total
 
-# Class for Disjoint Sets
 class DisjointSets(object):
+    """Class for Disjoint Sets, used in the MST algorithm"""
     def __init__(self, elements):
         setsList = [frozenset([e]) for e in elements]
         self.sets = set(setsList)
@@ -312,8 +310,10 @@ class DisjointSets(object):
     def areInSameSet(self, elem1, elem2):
         return self.setOf[elem1] == self.setOf[elem2]
 
-# Make minimum spanning tree from goals and distances, return a set of edges in MST
 def makeMst(goals, distBetween):
+    """
+    Make minimum spanning tree from goals and distances, return a set of edges in MST
+    """
     # edges sorted by dist(weight) increasing
     edges = [((a, b), distBetween[a, b]) for a in goals for b in goals if a != b]
     edges.sort(key=lambda x: x[1])
@@ -351,6 +351,7 @@ class CornersProblem(search.SearchProblem):
         # Please add any code here which you would like to use
         # in initializing the problem
         "*** YOUR CODE HERE ***"
+        ################### QUESTION 5 ###################
         self.startingGameState = startingGameState
         # record all actual dists between corners
         self.distBetween = {}
@@ -369,7 +370,8 @@ class CornersProblem(search.SearchProblem):
         space)
         """
         "*** YOUR CODE HERE ***"
-        # position, visited corners
+        ################### QUESTION 5 ###################
+        # node representation: (position, visited corners)
         return (self.startingPosition, frozenset())
 
     def isGoalState(self, state):
@@ -377,6 +379,8 @@ class CornersProblem(search.SearchProblem):
         Returns whether this search state is a goal state of the problem.
         """
         "*** YOUR CODE HERE ***"
+        ################### QUESTION 5 ###################
+        # is goal state if all corners visited
         return state[1] == set(self.corners)
 
     def getSuccessors(self, state):
@@ -400,6 +404,8 @@ class CornersProblem(search.SearchProblem):
             #   hitsWall = self.walls[nextx][nexty]
 
             "*** YOUR CODE HERE ***"
+            ################### QUESTION 5 ###################
+            # get the next position after applying action, determine if it hits a wall
             x,y = state[0]
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
@@ -445,10 +451,8 @@ def cornersHeuristic(state, problem):
     walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
 
     "*** YOUR CODE HERE ***"
+    ################### QUESTION 6 ###################
     if problem.isGoalState(state): return 0
-
-    def approxDist(a, b):
-        return (abs(a[0] - b[0]) + abs(a[1] - b[1]))
 
     # compute distance to corners
     remaining = list(set(problem.corners) - set(state[1]))
@@ -457,7 +461,7 @@ def cornersHeuristic(state, problem):
         distBetween[state[0], corner] = getShortestDist(problem.startingGameState, state[0], corner)
 
     # get total dist
-    return getDistToAllMinimumSpanningTree(state[0], list(remaining), distBetween)
+    return getDistToAllUsingMst(state[0], list(remaining), distBetween)
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -551,12 +555,11 @@ def foodHeuristic(state, problem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
+    ################### QUESTION 7 ###################
     if problem.isGoalState(state): return 0
 
-    def approxDist(a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-    # compute approximate distances
+    # compute actual distances between all food points
+    # only executed once in a problem
     foodList = foodGrid.asList()
     if "distBetween" not in problem.heuristicInfo:
         problem.heuristicInfo["distBetween"] = {}
@@ -566,19 +569,18 @@ def foodHeuristic(state, problem):
                     a = foodList[i]
                     b = foodList[j]
                     dist = getShortestDist(problem.startingGameState, a, b)
-#                     dist = approxDist(a, b)
                     problem.heuristicInfo["distBetween"][a, b] = dist
                     problem.heuristicInfo["distBetween"][b, a] = dist
     
+    # approximate distances from current position to all food points
     distBetween = dict(problem.heuristicInfo["distBetween"])
     for coord in foodList:
-#         dist = getShortestDist(problem.startingGameState, position, coord)
-        dist = approxDist(position, coord)
+        dist = manhattanDist(position, coord)
         distBetween[position, coord] = dist
         distBetween[coord, position] = dist
 
-    # do "travelling salesman"
-    return getDistToAllMinimumSpanningTree(position, foodList, distBetween)
+    # solve the relaxed "travelling salesman problem"
+    return getDistToAllUsingMst(position, foodList, distBetween)
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -609,6 +611,7 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
 
         "*** YOUR CODE HERE ***"
+        ################### QUESTION 8 ###################
         return search.uniformCostSearch(problem)
 
 class AnyFoodSearchProblem(PositionSearchProblem):
